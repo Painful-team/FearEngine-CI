@@ -1,0 +1,28 @@
+name: Test-py
+
+on: [push]
+
+jobs:
+  style:
+    runs-on: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/setup-python@v1
+        with:
+          python-version: '3.9.1'
+          architecture: 'x64'
+
+      - name: Install requirements
+        run: pip install -r src/requirements.txt
+      - name: Run tests
+        run: sh ./src/style.sh
+  build:
+    needs: [style]
+    runs-on: [ubuntu-latest]
+    steps:
+      - run: echo "BUILD"
+  unit:
+    needs: [style, build]
+    runs-on: [ubuntu-latest]
+    steps:
+      - run: echo "UNIT TEST"
