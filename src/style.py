@@ -110,11 +110,16 @@ def in_comment(line: str, symbol: str):
     return False
 
 
-
-
 def is_empty_line(line: str):
     for char in line:
         if not char.isspace():
+            return False
+    return True
+
+
+def is_empty_errors(dic: dict):
+    for title, value in dic.items():
+        if len(value) != 0:
             return False
     return True
 
@@ -300,7 +305,8 @@ def find_valid_extension(name):
     return '.'
 
 
-def check_files(paths, flag: bool):
+def check_files(paths):
+    is_empty_ = True
     dir = os.listdir(path=paths)
     for file in dir:
         ext = find_valid_extension(str(file))
@@ -309,17 +315,17 @@ def check_files(paths, flag: bool):
             text_formatting(f, paths)
             f.close()
 
-
-            if ERRORS_:
-                flag = True
-            if ERRORS_.get('EXTENSION') or ERRORS_.get('FORMATTING') :
+            if not is_empty_errors(ERRORS_):
+                is_empty_ = False
                 print('In ' + file + ' errors:')
                 print_errors(ERRORS_, f.name)
             clear_errors(ERRORS_)
 
+    return is_empty_
+
 
 def main(paths: str):
-    flag = False
+    is_empty_ = True
     dir = os.walk(paths)
     for current in dir:
         paths = current[0]
@@ -328,9 +334,9 @@ def main(paths: str):
                 for file in current[folder]:
                     if current[0].find('include') != -1:
                         continue
-                    check_files(current[0] + '/' + file, flag)
+                    is_empty_ = check_files(current[0] + '/' + file)
 
-    if not flag:
+    if not is_empty_:
         exit(1)
     else:
         exit(0)
