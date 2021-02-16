@@ -1,0 +1,18 @@
+# Binaries
+bin/
+obj/
+
+# Support
+*.log
+imgui.ini
+
+# Visual Studio files
+.vs/
+**.sln
+**.vcxproj
+**.vcxproj.filters
+**.vcxproj.user
+
+#Idea
+
+.idea

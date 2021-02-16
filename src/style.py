@@ -1,5 +1,4 @@
 import os
-import re
 
 USER_TYPES_ = [
     'typedef',
@@ -9,16 +8,13 @@ USER_TYPES_ = [
     'enum'
 ]
 
-C_TYPES_ = [
-    'uint8_t',
-    'int8_t',
-    'uint16_t',
-    'int16_t',
-    'uint32_t',
-    'int32_t',
-    'uint64_t',
-    'int64_t'
-]
+C_TYPES_ = {
+    'short': 'int16_t',
+    'unsigned short': 'uint16_t',
+    'long long': 'int64_t',
+    'unsigned long long': 'uint64_t/size_t',
+    'unsigned': 'uint32_t',
+}
 
 TYPES_ = [
     'void',
@@ -80,24 +76,24 @@ def clear_errors(dic: dict):
 
 
 def is_func(line):
-    flag = False
+    hasType = False
     for type in TYPES_:
         split_l = str(line).partition(' ')
         if split_l[0] == type:
-            flag = True
+            hasType = True
             break
-    if flag:
-        if str(line).find('(') != -1 and str(line).find(')') != -1:
+    if hasType and str(line).find('(') != -1 and str(line).find(')') != -1:
             return True
     return False
 
 
 def in_string(line: str, symbol : str):
-    if line.find('"') != -1:
+    if (line.find('"') != -1 and line.count('"') % 2 == 0) \
+            or (line.find('"') != -1 and line.find('\\') > line.find('"')):
         pos_string = line.find('"')
         if line.find(symbol) != -1 and \
                 line.find(symbol) > pos_string and \
-                line.find(symbol) < line.find('"', pos_string+1):
+                line.find(symbol) < line.find('"', pos_string + 1):
             return True
     return False
 
@@ -144,9 +140,9 @@ def text_formatting(file, path):
         guard = make_header_guard(file, path)
 
     for line in file:
-        if line.find('/*') != -1:
+        if line.find('= R"') != -1 and not in_string(line, '= R"') and not in_comment(line, '= R"'):
             hasComm = True
-        elif line.find('*/') != -1:
+        elif line.find('"') != -1:
             hasComm = False
         if hasComm:
             continue
@@ -280,15 +276,14 @@ def text_formatting(file, path):
         if line.find('inline namespace') != -1:
             insert_dict(ERRORS_.get('NAMESPACE'), str(number) + ' line |', '7.2', last_line + line)
 
-        if line.find('try') != -1 or line.find('throw') != -1:
+        if (line.find('try') != -1 and not in_string(line, 'try')) \
+                or (line.find('throw') != -1 and not in_string(line, 'throw')):
             insert_dict(ERRORS_.get('EXCEPTIONS'), str(number) + ' line |', '8.1', last_line + line)
 
-        if line.find('unsigned int') != -1:
-            insert_dict(ERRORS_.get('BASIC_DATA_TYPES'), str(number) + ' line |', '12.1', last_line + line)
-
-        for c_type in C_TYPES_:
-            if line.find(c_type) != -1:
-                insert_dict(ERRORS_.get('BASIC_DATA_TYPES'), str(number) + ' line |', '12.2', last_line + line)
+        for type, c_type in C_TYPES_.items():
+            if line.find(type) != -1:
+                insert_dict(ERRORS_.get('BASIC_DATA_TYPES'), str(number)
+                            + ' line |', '12.2 | ' + c_type + 'should be here ', last_line + line)
         if not is_empty_line(line):
             last_line = line
         last_indent = current_indent
@@ -300,7 +295,7 @@ def text_formatting(file, path):
 
 def find_valid_extension(name):
     for ext in EXTENSION_:
-        if name.find(ext) != -1 and name.find(".md") == -1:
+        if name.find(ext) != -1:
             return ext
     return '.'
 
@@ -332,8 +327,6 @@ def main(paths: str):
         if paths.find('./.') != 0:
             for folder in range(1, len(current) - 1):
                 for file in current[folder]:
-                    if current[0].find('include') != -1:
-                        continue
                     is_empty_ = check_files(current[0] + '/' + file)
 
     if not is_empty_:
@@ -343,4 +336,4 @@ def main(paths: str):
 
 
 if __name__ == '__main__':
-    main('./')
+    main('./src')
