@@ -1,4 +1,5 @@
 import os
+import re
 
 USER_TYPES_ = [
     'typedef',
@@ -101,6 +102,16 @@ def in_string(line: str, symbol : str):
     return False
 
 
+def in_comment(line: str, symbol: str):
+    if line.find('//') != -1 and not in_string(line, '//'):
+        pos_comment = line.find('//')
+        if line.find(symbol) != -1 and line.find(symbol) > pos_comment:
+            return True
+    return False
+
+
+
+
 def is_empty_line(line: str):
     for char in line:
         if not char.isspace():
@@ -122,11 +133,19 @@ def text_formatting(file, path):
     last_line = ''
     guard = ''
     count_empty_line = 0
+    hasComm = False
 
     if file.name.find('.hpp') != -1:
         guard = make_header_guard(file, path)
 
     for line in file:
+        if line.find('/*') != -1:
+            hasComm = True
+        elif line.find('*/') != -1:
+            hasComm = False
+        if hasComm:
+            continue
+
         hasOper = ''
         current_indent = 0
         typeInLine = ''
@@ -134,6 +153,8 @@ def text_formatting(file, path):
 
         if is_empty_line(line):
             count_empty_line += 1
+        else:
+            count_empty_line = 0
 
         if line.find('{') != -1 and line.find('namespace') == -1 and last_line.find('namespace') == -1:
             indent += 1
@@ -165,7 +186,7 @@ def text_formatting(file, path):
                 break
 
         if current_indent != indent and line.find('{') == -1 and not is_empty_line(line):
-            if current_indent > indent:
+            if current_indent < indent:
                 insert_dict(ERRORS_.get('FORMATTING'), str(number) + ' line |',
                             'Not enough whitespace',  last_line + line)
             else:
@@ -200,7 +221,6 @@ def text_formatting(file, path):
 
         if count_empty_line > 1:
             insert_dict(ERRORS_.get('FORMATTING'), str(number) + ' line |', '1.10', last_line + line)
-            count_empty_line = 0
 
         if line.find('const') != -1 and (line.find(typeInLine) < line.find('const')):
             insert_dict(ERRORS_.get('FORMATTING'), str(number) + ' line |', '1.13', last_line + line)
@@ -217,7 +237,7 @@ def text_formatting(file, path):
                 last_line.find('//') != -1 and not in_string(last_line, '//'):
             insert_dict(ERRORS_.get('FORMATTING'), str(number) + ' line |', '1.17', last_line + line)
 
-        if len(hasOper) != 0:
+        if len(hasOper) != 0 and not in_string(line, hasOper) and not in_comment(line, hasOper):
             newLine = line.split('(')[1]
             if newLine.find(')'):
                 newLine = newLine.replace(')', '')
@@ -275,7 +295,7 @@ def text_formatting(file, path):
 
 def find_valid_extension(name):
     for ext in EXTENSION_:
-        if name.find(ext) != -1 and name.find("README") == -1:
+        if name.find(ext) != -1 and name.find(".md") == -1:
             return ext
     return '.'
 
@@ -306,6 +326,8 @@ def main(paths: str):
         if paths.find('./.') != 0:
             for folder in range(1, len(current) - 1):
                 for file in current[folder]:
+                    if current[0].find('include') != -1:
+                        continue
                     check_files(current[0] + '/' + file, flag)
 
     if not flag:
