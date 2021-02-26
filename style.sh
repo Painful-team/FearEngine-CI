@@ -1,4 +1,4 @@
-python src/style.py 
+python style.py 
 
 if [ $? -ne 0 ]; then
 	echo "Your code style is shit, bro"
