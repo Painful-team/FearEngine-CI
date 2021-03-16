@@ -56,9 +56,6 @@ OPERATORS_ = [
 
 
 class Pair:
-    first_elem = int
-    second_elem = int
-
     def __init__(self):
         self.first_elem = -1
         self.second_elem = -1
@@ -81,7 +78,7 @@ def print_errors(dic: dict, file):
             print('\n============================================================')
             print(file_name, line, end=' ')
             for error, lines in errors.items():
-                print(error, '('+ title.lower() + ')', '\n' ,lines)
+                print(error, '(' + title.lower() + ')', '\n' ,lines)
 
 
 def clear_errors(dic: dict):
@@ -163,14 +160,25 @@ def text_formatting(file, path):
     last_line = ''
     count_empty_line = 0
     hasComm = False
-
-    for line in file:
+    inSwitch = False
+	lines = file.readlines()
+    print(lines[-1])
+    for line in lines:
         pos_comment = -1
         pos_string = string_position(line)
         hasOper = ''
         current_indent = 0
         typeInLine = ''
         userType = ''
+
+        pos = Pair()
+        pos.first_elem = line.find('(')
+        pos.second_elem = line.find(')')
+
+        if line.find('switch') != -1:
+            inSwitch = True
+        elif line.find('}') != -1 and inSwitch:
+            inSwitch = False
 
         if line.find('//') != -1 and not pos_string.is_empty() or \
                 not is_between(line, pos_string, '//'):
@@ -188,9 +196,10 @@ def text_formatting(file, path):
         else:
             count_empty_line = 0
 
-        if line.find('{') != -1 and line.find('namespace') == -1 and last_line.find('namespace') == -1:
+        if line.find('{') != -1 and line.find('namespace') == -1 and last_line.find('namespace') == -1 and \
+                not is_between(line, pos, '{'):
             indent += 1
-        elif line.find('}') != -1:
+        elif line.find('}') != -1 and not is_between(line, pos, '}'):
             indent -= 1
 
         for type in TYPES_:
@@ -217,7 +226,7 @@ def text_formatting(file, path):
             else:
                 break
 
-        if current_indent != indent and line.find('{') == -1 and not is_empty_line(line):
+        if current_indent != indent and line.find('{') == -1 and not is_empty_line(line) and not inSwitch:
             if current_indent < indent:
                 insert_dict('FORMATTING', str(number) + ' line |',
                             'Not enough whitespace',  last_line + line)
@@ -238,7 +247,8 @@ def text_formatting(file, path):
         if line[len(line) - 2] == ' ' or line[len(line) - 2] == '\t':
             insert_dict('FORMATTING', str(number) + ' line |', '1.3', last_line + line)
 
-        if line.find('{') != -1 and line.find('{') != current_indent:
+        if line.find('{') != -1 and line.find('{') != current_indent and \
+                (not is_between(line, pos, '{') or (line.find('=') != -1 and line.find('=') < line.find('{'))):
             insert_dict('FORMATTING', str(number) + ' line |', '1.6', last_line + line)
 
         if len(line) > 140:
@@ -254,7 +264,7 @@ def text_formatting(file, path):
 
         if count_empty_line > 1:
             insert_dict('FORMATTING', str(number) + ' line |', '1.10', last_line + line)
-# int foo (const int a = 0)
+
         for type in TYPES_:
             if re.search('\s?(' + type + ' const)\W?', line) and not in_string_or_comment(line, pos_string, pos_comment, 'const'):
                 insert_dict('FORMATTING', str(number) + ' line |', '1.13', last_line + line)
@@ -273,7 +283,6 @@ def text_formatting(file, path):
                 last_line.find('//') != -1 and not pos_string.is_empty() and not is_between(last_line, pos_string , '//'):
             insert_dict('FORMATTING', str(number) + ' line |', '1.17', last_line + line)
 
-
         if len(hasOper) != 0 and not in_string_or_comment(line, pos_string, pos_comment, hasOper):
             splitLine = line.split('(', maxsplit = 1)[1]
             if hasOper == 'for':
@@ -282,7 +291,8 @@ def text_formatting(file, path):
             splitLine = [line]
 
         for part in splitLine:
-            if len(typeInLine) != 0 and not is_func(line) and not in_string_or_comment(line, pos_string, pos_comment, typeInLine):
+            if len(typeInLine) != 0 and not is_func(line) and not in_string_or_comment(line, pos_string, pos_comment, typeInLine) and \
+                    ((line.find('(') != -1 and line.find('=') > line.find('(')) or line.find('(') == -1):
                 for var in splitLine:
                     arr = var.split(' ')
                     for i in arr:
@@ -309,7 +319,7 @@ def text_formatting(file, path):
                 ((len(typeInLine) != 0 and line.find(typeInLine) > line.find('=')) or len(typeInLine) == 0):
             sep = line.split()
             variable = sep[0]
-            if last_line.find(variable) != -1:
+            if last_line.find(variable) != -1 and last_line.find(";") == last_line.find(variable) + len(variable):
                 insert_dict('VARIABLE_DECLARATION', str(number) + ' line |', '5.6', last_line + line)
 
         if line.find('using namespace') != -1 and not in_string_or_comment(line, pos_string, pos_comment, 'using namespace'):
@@ -331,14 +341,16 @@ def text_formatting(file, path):
             last_line = line
         last_indent = current_indent
         number += 1
-
+	
+	if lines[-1][-1] != '\n':
+	    insert_dict('EXCEPTIONS', 'The file must end with an end-of-line character |', '1.4')
     if file.name.find('.h') != -1 and file.name.find('.hpp') == -1:
         insert_dict('EXTENSION', 'extension |', '2.1', '')
 
 
 def find_valid_extension(name):
     for ext in EXTENSION_:
-        if name.find(ext) != -1:
+        if name.find(ext) != -1 and name.find('.md') == -1:
             return ext
     return '.'
 
@@ -349,7 +361,7 @@ def check_files(paths):
         if find_valid_extension(str(file)) != '.':
             f = open(str(paths + '/' + file), 'r', encoding='utf-8')
             text_formatting(f, paths)
-
+            print("File checked: ", f.name)
             if not is_empty_errors(ERRORS_):
                 is_empty_ = False
                 print('In ' + file + ' errors:')
@@ -372,4 +384,4 @@ def main(paths: str):
 
 
 if __name__ == '__main__':
-    main('./src')
+    main('/__w/fear-engine/fear-engine')
