@@ -1,4 +1,4 @@
-python /usr/src/app/style.py 
+python /fear-engine-CI/style.py 
 
 if [ $? -ne 0 ]; then
 	echo "Сode style is good"

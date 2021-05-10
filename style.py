@@ -46,6 +46,7 @@ ERRORS_ = {
     'NAMESPACE': {},
     'EXCEPTIONS': {},
     'BASIC_DATA_TYPES': {},
+    'CLASS': {}
 }
 
 OPERATORS_ = [
@@ -90,17 +91,17 @@ def is_lambda(line: str):
     return re.search('(\[[\w\s\*&=,]*\])\s?([\w\s\.,<>:]*)(\([\w\s\*&=,]*\))', line) != None
 
 
-def is_func(line, symbol = '', inFunc = False):
-    hasType = False
+def is_func(line, symbol='', in_func=False):
+    has_type = False
     for type in TYPES_:
         split_l = str(line).partition(' ')
         if split_l[0] == type:
-            hasType = True
+            has_type = True
             break
-    if not inFunc:
-        return hasType and str(line).find('(') != -1 and str(line).find(')') != -1
+    if not in_func:
+        return has_type and str(line).find('(') != -1 and str(line).find(')') != -1
     else:
-        return hasType and str(line).find('(') != -1 and str(line).find(')') != -1 and\
+        return has_type and str(line).find('(') != -1 and str(line).find(')') != -1 and\
                line.find('(') < line.find(symbol) and line.find(')') > line.find(symbol)
 
 
@@ -154,45 +155,64 @@ def make_header_guard(file, path):
 
 
 def text_formatting(file, path):
+
     number = 1
     indent = 0
     last_indent = 0
-    last_line = ''
     count_empty_line = 0
-    hasComm = False
-    inSwitch = False
+    class_level = -1
     lines = file.readlines()
-    print(lines[-1])
+
+    last_line = ''
+
+    has_comm = False
+    in_switch = False
+    in_class = False
+    in_comment = False
+
+    class_struct = {
+        'public': False,
+        'protected': False,
+        'private': False,
+    }
+
     for line in lines:
+        current_indent = 0
         pos_comment = -1
         pos_string = string_position(line)
-        hasOper = ''
-        current_indent = 0
-        typeInLine = ''
-        userType = ''
+
+        has_oper = ''
+        type_in_line = ''
+        user_type = ''
 
         pos = Pair()
         pos.first_elem = line.find('(')
         pos.second_elem = line.find(')')
 
         if line.find('switch') != -1:
-            inSwitch = True
-        elif line.find('}') != -1 and inSwitch:
-            inSwitch = False
+            in_switch = True
+        elif line.find('}') != -1 and in_switch:
+            in_switch = False
 
         if line.find('//') != -1 and not pos_string.is_empty() or \
                 not is_between(line, pos_string, '//'):
             pos_comment = line.find('//')
+            in_comment = True
+        elif line.find('/*') != -1 and not in_string_or_comment(line, pos_string, pos_comment, '/*'):
+            in_comment = True
+        elif line.find('*/') != -1 and not in_string_or_comment(line, pos_string, pos_comment, '*/'):
+            in_comment = False
 
         if line.find('= R"') != -1 and not in_string_or_comment(line, pos_string, pos_comment, '= R"'):
-            hasComm = True
+            has_comm = True
         elif line.find('"') != -1:
-            hasComm = False
-        if hasComm:
+            has_comm = False
+        if has_comm:
             continue
 
         if is_empty_line(line):
             count_empty_line += 1
+            continue
         else:
             count_empty_line = 0
 
@@ -204,17 +224,17 @@ def text_formatting(file, path):
 
         for type in TYPES_:
             if re.search('\s?(' + type + ')\W?', line) != None:
-                typeInLine = type
+                type_in_line = type
                 break
 
         for type in USER_TYPES_:
             if line.find(type) != -1:
-                userType = type
+                user_type = type
                 break
 
         for operator in OPERATORS_:
             if line.find(operator) != -1 and (line.find('#') == -1 or line.find('#') > line.find(operator)):
-                hasOper = operator
+                has_oper = operator
                 break
 
         for char in line:
@@ -226,7 +246,7 @@ def text_formatting(file, path):
             else:
                 break
 
-        if current_indent != indent and line.find('{') == -1 and not is_empty_line(line) and not inSwitch:
+        if current_indent != indent and line.find('{') == -1 and not is_empty_line(line) and not in_switch:
             if current_indent < indent:
                 insert_dict('FORMATTING', str(number) + ' line |',
                             'Not enough whitespace',  last_line + line)
@@ -234,21 +254,28 @@ def text_formatting(file, path):
                 insert_dict('FORMATTING', str(number) + ' line |',
                             'Too many whitespace', last_line + line)
 
+        if last_line.find('class') != -1 and (line.find('{') != -1 or last_line.find('{') != -1) and not in_class:
+            class_level = indent
+            in_class = True
+        elif line.find('}') != -1 and indent == class_level and not in_string_or_comment(line,pos_string,pos_comment,'}'):
+            in_class = False
+
         if line.find('#ifndef') != -1 and file.name.find('.hpp') != -1 and \
                 line.split()[1] != make_header_guard(file, path) and number == 1:
             insert_dict('HEADER_FILES', str(number) + ' line |', '3.2', last_line + line)
 
-        if line.count(';') > 1 and line.find('for') == -1:
+        if line.count(';') > 1 and line.find('for') == -1 and not is_lambda(line):
             insert_dict('FORMATTING', str(number) + ' line |', '1.1', last_line + line)
 
-        if (is_func(line) or is_lambda(line)) and line.find('{') != -1 and line.find('}') != -1:
+        if (is_func(line) and not is_lambda(line)) and line.find('{') != -1 and line.find('}') != -1:
             insert_dict('FORMATTING', str(number) + ' line |', '1.2', last_line + line)
 
         if line[len(line) - 2] == ' ' or line[len(line) - 2] == '\t':
             insert_dict('FORMATTING', str(number) + ' line |', '1.3', last_line + line)
 
         if line.find('{') != -1 and line.find('{') != current_indent and \
-                (not is_between(line, pos, '{') or (line.find('=') != -1 and line.find('=') < line.find('{'))):
+                (not is_between(line, pos, '{') or (line.find('=') != -1 and line.find('=') < line.find('{')))\
+                and line.find('return') == -1 and not is_lambda(line):
             insert_dict('FORMATTING', str(number) + ' line |', '1.6', last_line + line)
 
         if len(line) > 140:
@@ -270,9 +297,8 @@ def text_formatting(file, path):
                 insert_dict('FORMATTING', str(number) + ' line |', '1.13', last_line + line)
                 break
 
-        if len(userType) != 0:
-            lst = line.split()
-            if not lst[1][0].isupper():
+        if len(user_type) != 0:
+            if not line[line.find(user_type) + len(user_type) + 1].isupper():
                 insert_dict('FORMATTING', str(number) + ' line |', '1.15', last_line + line)
 
         if line.find('//') != -1 and line.find('//') != last_indent \
@@ -283,22 +309,24 @@ def text_formatting(file, path):
                 last_line.find('//') != -1 and not pos_string.is_empty() and not is_between(last_line, pos_string , '//'):
             insert_dict('FORMATTING', str(number) + ' line |', '1.17', last_line + line)
 
-        if len(hasOper) != 0 and not in_string_or_comment(line, pos_string, pos_comment, hasOper):
-            splitLine = line.split('(', maxsplit = 1)[1]
-            if hasOper == 'for':
-                splitLine = splitLine.split(';')[0][len(hasOper):].split(',')
+        if len(has_oper) != 0 and not in_string_or_comment(line, pos_string, pos_comment, has_oper) and not in_comment:
+            split_line = line.split('(', maxsplit = 1)
+            if len(split_line) > 1:
+                split_line = split_line[1]
+            if has_oper == 'for':
+                print(has_comm)
+                split_line = split_line.split(';')[0][len(has_oper):].split(',')
         else:
-            splitLine = [line]
+            split_line = [line]
 
-        for part in splitLine:
-            if len(typeInLine) != 0 and not is_func(line) and not in_string_or_comment(line, pos_string, pos_comment, typeInLine) and \
+        for part in split_line:
+            if len(type_in_line) != 0 and not is_func(line) and not in_string_or_comment(line, pos_string, pos_comment, type_in_line) and \
                     ((line.find('(') != -1 and line.find('=') > line.find('(')) or line.find('(') == -1):
-                for var in splitLine:
+                for var in split_line:
                     arr = var.split(' ')
                     for i in arr:
                         if (i and i[0] != '*' and i[0] != '&' and i[0].isupper()):
                             insert_dict('FORMATTING', str(number) + ' line |', '1.19', last_line + line)
-
 
         if line.find('.') != -1 and not in_string_or_comment(line, pos_string, pos_comment, '.'):
             positions = find_all(line, '.')
@@ -309,21 +337,18 @@ def text_formatting(file, path):
         if re.search('\s?(main)\W?', line) != None and is_func(line) and file.name.find('.m') == -1:
             insert_dict('EXTENSION', 'extension |', '2.2', '')
 
-        if len(typeInLine) != 0 and line[line.find(typeInLine) + len(typeInLine)].isspace() and \
-                ((line[line.find(typeInLine) + len(typeInLine) + 1] == '*') or
-                 (line[line.find(typeInLine) + len(typeInLine) + 1] == '&')) and \
+        if len(type_in_line) != 0 and line[line.find(type_in_line) + len(type_in_line)].isspace() and \
+                ((line[line.find(type_in_line) + len(type_in_line) + 1] == '*') or
+                 (line[line.find(type_in_line) + len(type_in_line) + 1] == '&')) and \
                 (not in_string_or_comment(line, pos_string, pos_comment, '*') or not in_string_or_comment(line, pos_string, pos_comment, '&')):
             insert_dict('VARIABLE_DECLARATION', str(number) + ' line |','5.5', last_line + line)
 
-        if line.find('=') != -1 and not hasOper and \
-                ((len(typeInLine) != 0 and line.find(typeInLine) > line.find('=')) or len(typeInLine) == 0):
+        if line.find('=') != -1 and not has_oper and \
+                ((len(type_in_line) != 0 and line.find(type_in_line) > line.find('=')) or len(type_in_line) == 0):
             sep = line.split()
             variable = sep[0]
             if last_line.find(variable) != -1 and last_line.find(";") == last_line.find(variable) + len(variable):
                 insert_dict('VARIABLE_DECLARATION', str(number) + ' line |', '5.6', last_line + line)
-
-        if line.find('using namespace') != -1 and not in_string_or_comment(line, pos_string, pos_comment, 'using namespace'):
-            insert_dict('NAMESPACE', str(number) + ' line |', '7.1', last_line + line)
 
         if line.find('inline namespace') != -1 and not in_string_or_comment(line, pos_string, pos_comment, 'inline namespace'):
             insert_dict('NAMESPACE', str(number) + ' line |', '7.2', last_line + line)
@@ -335,7 +360,24 @@ def text_formatting(file, path):
         for type, c_type in C_TYPES_.items():
             if line.find(type) != -1 and not in_string_or_comment(line, pos_string, pos_comment, type):
                 insert_dict('BASIC_DATA_TYPES', str(number)
-                            + ' line |', '12.2 | ' + c_type + 'should be here ', last_line + line)
+                            + ' line |', '12.2 | ' + c_type + ' should be here ', last_line + line)
+
+        if in_class and line.find('public') != -1 and not in_string_or_comment(line, pos_string, pos_comment, 'public'):
+            class_struct['public'] = True
+            if class_struct['private'] or class_struct['protected']:
+                insert_dict('CLASS', str(number) + ' line |', '19.5', last_line + line)
+
+        if in_class and line.find('protected') != -1 and not in_string_or_comment(line, pos_string, pos_comment, 'protected'):
+            class_struct['protected'] = True
+            if class_struct['private']:
+                insert_dict('CLASS', str(number) + ' line |', '19.5', last_line + line)
+
+        if in_class and line.find('private') != -1 and not in_string_or_comment(line, pos_string, pos_comment, 'private'):
+            class_struct['private'] = True
+
+        if in_class and line.find('operator') != -1 and (line.find('&&') != -1 or line.find('||') != -1 or line.find('""') != -1)\
+                and not in_string_or_comment(line, pos_string, pos_comment, 'operator'):
+                insert_dict('CLASS', str(number) + ' line |', '19.4', last_line + line)
 
         if not is_empty_line(line):
             last_line = line
@@ -343,7 +385,7 @@ def text_formatting(file, path):
         number += 1
 
     if lines[-1][-1] != '\n':
-        insert_dict('EXCEPTIONS', 'The file must end with an end-of-line character |', '1.4')
+        insert_dict('EXCEPTIONS', 'The file must end with an end-of-line character |', '1.4', '')
     if file.name.find('.h') != -1 and file.name.find('.hpp') == -1:
         insert_dict('EXTENSION', 'extension |', '2.1', '')
 
