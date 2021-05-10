@@ -157,19 +157,18 @@ def make_header_guard(file, path):
 def text_formatting(file, path):
 
     number = 1
-    indent = 0
     last_indent = 0
     count_empty_line = 0
     class_level = -1
     lines = file.readlines()
-
+    indent = 0
     last_line = ''
 
     has_comm = False
     in_switch = False
     in_class = False
     in_comment = False
-
+    struct_= ''
     class_struct = {
         'public': False,
         'protected': False,
@@ -209,17 +208,19 @@ def text_formatting(file, path):
             has_comm = False
         if has_comm:
             continue
+            
 
         if is_empty_line(line):
             count_empty_line += 1
+            number += 1
             continue
         else:
             count_empty_line = 0
 
-        if line.find('{') != -1 and line.find('namespace') == -1 and last_line.find('namespace') == -1 and \
+        if line.find('{') != -1 and line.find('{}') == -1 and line.find('namespace') == -1 and last_line.find('namespace') == -1 and \
                 not is_between(line, pos, '{'):
             indent += 1
-        elif line.find('}') != -1 and not is_between(line, pos, '}'):
+        if line.find('}') != -1 and line.find('{}') == -1 and not is_between(line, pos, '}') and (indent - 1) >= 0:
             indent -= 1
 
         for type in TYPES_:
@@ -236,6 +237,11 @@ def text_formatting(file, path):
             if line.find(operator) != -1 and (line.find('#') == -1 or line.find('#') > line.find(operator)):
                 has_oper = operator
                 break
+        
+        for struct in class_struct:
+            if line.find(struct) != -1:
+                struct_= struct
+                
 
         for char in line:
             if char == '\t':
@@ -245,20 +251,34 @@ def text_formatting(file, path):
                 break
             else:
                 break
+           
+        #print(file.name, number, current_indent, indent)
 
-        if current_indent != indent and line.find('{') == -1 and not is_empty_line(line) and not in_switch:
+        if current_indent != indent and line.find('{') == -1 and not is_empty_line(line) and not in_switch and len(struct_)<0:
             if current_indent < indent:
                 insert_dict('FORMATTING', str(number) + ' line |',
                             'Not enough whitespace',  last_line + line)
             else:
                 insert_dict('FORMATTING', str(number) + ' line |',
                             'Too many whitespace', last_line + line)
-
+       
         if last_line.find('class') != -1 and (line.find('{') != -1 or last_line.find('{') != -1) and not in_class:
-            class_level = indent
+            #print('TRUE', file.name, number, last_line)
+            class_level = current_indent
             in_class = True
-        elif line.find('}') != -1 and indent == class_level and not in_string_or_comment(line,pos_string,pos_comment,'}'):
+        elif in_class and line.find('}') != -1 and current_indent == class_level and not in_string_or_comment(line,pos_string,pos_comment,'}'):
+            #if file.name == './src\event//WindowEvent.hpp':
+            #print('FALSE', file.name, number)
             in_class = False
+            class_struct = {
+                'public': False,
+                'protected': False,
+                'private': False,
+            }
+
+        #if file.name.find('Engine.hpp') != -1:
+         #   print(in_class and line.find('}') != -1 and current_indent == class_level and not in_string_or_comment(line,pos_string,pos_comment,'}'), number, line.find('}') != -1  ,in_class )
+            
 
         if line.find('#ifndef') != -1 and file.name.find('.hpp') != -1 and \
                 line.split()[1] != make_header_guard(file, path) and number == 1:
@@ -272,10 +292,10 @@ def text_formatting(file, path):
 
         if line[len(line) - 2] == ' ' or line[len(line) - 2] == '\t':
             insert_dict('FORMATTING', str(number) + ' line |', '1.3', last_line + line)
-
+		
         if line.find('{') != -1 and line.find('{') != current_indent and \
                 (not is_between(line, pos, '{') or (line.find('=') != -1 and line.find('=') < line.find('{')))\
-                and line.find('return') == -1 and not is_lambda(line):
+                and line.find('return') == -1 and not is_lambda(line) and line.find('{')+1 != line.find('}'):
             insert_dict('FORMATTING', str(number) + ' line |', '1.6', last_line + line)
 
         if len(line) > 140:
@@ -297,8 +317,8 @@ def text_formatting(file, path):
                 insert_dict('FORMATTING', str(number) + ' line |', '1.13', last_line + line)
                 break
 
-        if len(user_type) != 0:
-            if not line[line.find(user_type) + len(user_type) + 1].isupper():
+        if len(user_type) != 0 and line.find(':') == -1:
+            if  not line[line.find(user_type) + len(user_type) + 1].isupper():
                 insert_dict('FORMATTING', str(number) + ' line |', '1.15', last_line + line)
 
         if line.find('//') != -1 and line.find('//') != last_indent \
@@ -325,7 +345,7 @@ def text_formatting(file, path):
                 for var in split_line:
                     arr = var.split(' ')
                     for i in arr:
-                        if (i and i[0] != '*' and i[0] != '&' and i[0].isupper()):
+                        if (i and i[0] != '*' and i[0] != '&' and i[0].isupper()) and line.find('using') == -1:
                             insert_dict('FORMATTING', str(number) + ' line |', '1.19', last_line + line)
 
         if line.find('.') != -1 and not in_string_or_comment(line, pos_string, pos_comment, '.'):
@@ -361,8 +381,10 @@ def text_formatting(file, path):
             if line.find(type) != -1 and not in_string_or_comment(line, pos_string, pos_comment, type):
                 insert_dict('BASIC_DATA_TYPES', str(number)
                             + ' line |', '12.2 | ' + c_type + ' should be here ', last_line + line)
-
+        
+              
         if in_class and line.find('public') != -1 and not in_string_or_comment(line, pos_string, pos_comment, 'public'):
+            #print(class_struct, number, in_class, file.name, line)
             class_struct['public'] = True
             if class_struct['private'] or class_struct['protected']:
                 insert_dict('CLASS', str(number) + ' line |', '19.5', last_line + line)
@@ -426,4 +448,4 @@ def main(paths: str):
 
 
 if __name__ == '__main__':
-    main('/__w/fear-engine/fear-engine/src')
+    main('./src')
