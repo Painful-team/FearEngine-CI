@@ -17,6 +17,6 @@ jobs:
       - name: Publish Docker
         uses: elgohr/Publish-Docker-Github-Action@3.02
         with:
-          name: jeez/fear-engine
+          name: painfulteam/fear-engine
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
