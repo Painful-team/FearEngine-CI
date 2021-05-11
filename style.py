@@ -150,8 +150,14 @@ def in_string_or_comment(line:str, pos_str: Pair, pos_comment: int, sub_line):
 
 def make_header_guard(file, path):
     name = file.name.split('/')[-1]
-    return str('ENGINE' + path.replace('/', '_').replace('.', '').upper() + '_' + name.split('.')[0].upper()
-               + '_' + name.split('.')[1].upper() + '_')
+    folders = path.split('/')
+    curr_path = ''
+    find = False
+    for folder in range(folders.index('src') + 1,len(folders)):
+        if folders[folder] != '':
+            curr_path += folders[folder].upper() + '_'
+        
+    return str('FEARENGINE_' + curr_path + name.split('.')[0].upper() + '_H__')
 
 
 def text_formatting(file, path):
@@ -251,8 +257,6 @@ def text_formatting(file, path):
                 break
             else:
                 break
-           
-        #print(file.name, number, current_indent, indent)
 
         if current_indent != indent and line.find('{') == -1 and not is_empty_line(line) and not in_switch and len(struct_)<0:
             if current_indent < indent:
@@ -263,29 +267,26 @@ def text_formatting(file, path):
                             'Too many whitespace', last_line + line)
        
         if last_line.find('class') != -1 and (line.find('{') != -1 or last_line.find('{') != -1) and not in_class:
-            #print('TRUE', file.name, number, last_line)
             class_level = current_indent
             in_class = True
         elif in_class and line.find('}') != -1 and current_indent == class_level and not in_string_or_comment(line,pos_string,pos_comment,'}'):
-            #if file.name == './src\event//WindowEvent.hpp':
-            #print('FALSE', file.name, number)
             in_class = False
             class_struct = {
                 'public': False,
                 'protected': False,
                 'private': False,
             }
-
-        #if file.name.find('Engine.hpp') != -1:
-         #   print(in_class and line.find('}') != -1 and current_indent == class_level and not in_string_or_comment(line,pos_string,pos_comment,'}'), number, line.find('}') != -1  ,in_class )
-            
-
+ 
         if line.find('#ifndef') != -1 and file.name.find('.hpp') != -1 and \
                 line.split()[1] != make_header_guard(file, path) and number == 1:
             insert_dict('HEADER_FILES', str(number) + ' line |', '3.2', last_line + line)
 
         if line.count(';') > 1 and line.find('for') == -1 and not is_lambda(line):
-            insert_dict('FORMATTING', str(number) + ' line |', '1.1', last_line + line)
+            count_symbol_before = 0
+            for i in range(line.find(';'), len(line)):
+                count_symbol_before += 1
+            if count_symbol_before > 4:
+                insert_dict('FORMATTING', str(number) + ' line |', '1.1', last_line + line)
 
         if (is_func(line) and not is_lambda(line)) and line.find('{') != -1 and line.find('}') != -1:
             insert_dict('FORMATTING', str(number) + ' line |', '1.2', last_line + line)
@@ -376,15 +377,9 @@ def text_formatting(file, path):
         if ((re.search('\s?(try)\W?',line) != None and not in_string_or_comment(line, pos_string, pos_comment, 'try')) or
                 (re.search('\s?(throw)\W?', line) != None and not in_string_or_comment(line, pos_string, pos_comment, 'throw'))):
             insert_dict('EXCEPTIONS', str(number) + ' line |', '8.1', last_line + line)
-
-        for type, c_type in C_TYPES_.items():
-            if line.find(type) != -1 and not in_string_or_comment(line, pos_string, pos_comment, type):
-                insert_dict('BASIC_DATA_TYPES', str(number)
-                            + ' line |', '12.2 | ' + c_type + ' should be here ', last_line + line)
         
               
-        if in_class and line.find('public') != -1 and not in_string_or_comment(line, pos_string, pos_comment, 'public'):
-            #print(class_struct, number, in_class, file.name, line)
+        if in_class and line.find('public') != -1 and not in_string_or_comment(line, pos_string, pos_comment, 'public'):      
             class_struct['public'] = True
             if class_struct['private'] or class_struct['protected']:
                 insert_dict('CLASS', str(number) + ' line |', '19.5', last_line + line)
@@ -448,4 +443,4 @@ def main(paths: str):
 
 
 if __name__ == '__main__':
-    main('./src')
+    main('/__w/fear-engine/fear-engine')
