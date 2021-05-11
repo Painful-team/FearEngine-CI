@@ -443,4 +443,4 @@ def main(paths: str):
 
 
 if __name__ == '__main__':
-    main('/__w/fear-engine/fear-engine')
+    main('/__w/fear-engine/fear-engine/src')
