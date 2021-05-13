@@ -437,9 +437,11 @@ def main(paths: str):
         is_empty_ = check_files(current[0] + '/')
 
     if not is_empty_:
-        return 1
+        print("Code style is bad")
+        exit(1)
     else:
-        return 0
+        print("Сode style is good")
+        exit(0)
 
 
 if __name__ == '__main__':
